@@ -1,0 +1,362 @@
+---
+title: "Dimensionality Reduction"
+author: "Anh Thu"
+date: "10/18/2021"
+output: pdf_document
+---
+
+#load the library
+```{r}
+library(readr)
+library(dplyr)
+library(plyr)
+library(lubridate)
+library(ggpubr)
+library(tidyr)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(factoextra)
+library(xtable)
+library(FactoMineR)
+library(cluster.datasets)
+```
+
+#Import the data set
+```{r}
+df <- read.csv("users.db.csv")
+colnames(df)
+```
+#Identifying correlations in the variables
+```{r}
+#Visual inspection of the data normality using Q-Q plots
+ggqqplot(df$score, ylab = "Score")
+ggqqplot(df$n.matches, ylab = "Number of matches")
+ggqqplot(df$n.updates.photo, ylab = "Number of updated photos")
+ggqqplot(df$n.photos, ylab = "Number of photos")
+```
+
+
+##Cor.test score & n.matches
+```{r}
+cor.test(df$score, df$n.matches, method = "pearson")
+```
+
+##Histograms of Score and Matches variable
+```{r}
+par(mfrow=c(1,2))
+hist(df$score,main='Score of the profile',xlab='Score')
+hist(df$n.matches,main='Total number of matches',xlab='Number of matches')
+```
+
+##Scatter plot for score & n.matches
+```{r}
+ggscatter(df, x = "score", y = "n.matches", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Score of the profile", ylab = "Total matches")
+```
+## Cor.test gender & n.photos
+```{r}
+cor_score_keke <- cor.test(df$gender, df$n.photos, method = "pearson")
+cor_score_keke
+```
+
+## Cor test gender & photo.keke
+```{r}
+cor.test(df$gender, df$photo.keke, method ='spearman')
+```
+## Scatter plot for gender & keke
+```{r}
+ggscatter(df, x = "gender", y = "photo.keke", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "spearman",
+          xlab = "Gender", ylab = "Photo keke found")
+```
+##The correlations between several variables
+```{r}
+t1 <- round(cor(cbind(df$score,df$n.matches,df$n.updates.photo,df$n.photos)),2)
+xtable(t1)
+```
+
+#Dimensionality Reduction
+```{r}
+simple.fit = lm(gender~score, df)
+summary(simple.fit)
+```
+ 
+```{r}
+multi.fit = lm(gender ~ score + n.photos, df)
+summary(multi.fit)
+```
+```{r}
+df_active <- df[,c("score", "n.matches", "n.updates.photo", "n.photos","sent.ana","length.prof")]
+head(df_active)
+```
+
+
+```{r}
+#df_active <- na.omit(df_active)
+res.pca <- PCA(df_active, graph= FALSE)
+```
+
+```{r}
+summary(res.pca)
+```
+##Scree
+```{r}
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+##The Individuals factor map
+
+```{r}
+fviz_pca_ind(res.pca, col.ind = "cos2", # Color by the quality of representation
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE  # Avoid text overlapping
+             )
+```
+```{r}
+df <- df %>% mutate(Gender.c =case_when (gender == 0 ~ "Male",
+                                          gender == 1 ~ "Female",
+                                          gender == 2 ~ "Other"))
+```
+```{r}
+fviz_pca_ind(res.pca,
+             geom.ind = "point", # show points only (nbut not "text")
+             col.ind = df$Gender.c, # color by groups
+             palette = c("#00AFBB", "#E7B800", "#FC4E07"),
+             addEllipses = TRUE, # Concentration ellipses
+             legend.title = "Groups",
+             select.ind = list(contrib=500)
+             )
+```
+
+
+##Variables factor map
+
+```{r}
+fviz_pca_var(res.pca,
+             col.var = "cos2", # Color by qualities of representation
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+##Biplot
+
+```{r}
+library(lares)
+fviz_pca_biplot(res.pca, repel = TRUE,
+                col.var = "#2E9FDF", # Variables color
+                col.ind = "#696969" , # Individuals color,
+                select.ind = list(contrib=500)
+                )
+```
+##Table
+
+
+```{r}
+# PCA with function prcomp
+pca1 = prcomp(df_active, scale. = TRUE)
+
+# sqrt of eigenvalues
+pca1$sdev
+```
+
+```{r}
+# loadings
+xtable(pca1$rotation)
+```
+
+##MCA
+
+```{r}
+df_mca <- df[,c("Gender.c", "photo.keke", "photo.beach", "voyage","laugh")]
+df_mca$Gender.c <- as.factor(df_mca$Gender.c)
+df_mca$photo.keke <- as.factor(df_mca$photo.keke)
+df_mca$photo.beach <- as.factor(df_mca$photo.beach) 
+df_mca$voyage <- as.factor(df_mca$voyage)
+df_mca$laugh <- as.factor(df_mca$laugh)
+head(df_mca)
+```
+```{r}
+res.mca <- MCA(df_mca, graph = FALSE)
+res.mca
+```
+
+###Eigenvalues / Variances
+```{r}
+library("factoextra")
+eig.val <- get_eigenvalue(res.mca)
+head(eig.val)
+```
+
+
+###To visualize the percentages of inertia explained by each MCA dimensions
+```{r}
+fviz_screeplot(res.mca, addlabels = TRUE, ylim = c(0, 45))
+```
+
+###Biplot
+```{r}
+fviz_mca_biplot(res.mca, repel = TRUE,
+                ggtheme = theme_minimal())
+```
+###Graph of variables
+```{r}
+var <-get_mca_var(res.mca)
+var
+```
+
+
+```{r}
+fviz_mca_var(res.mca, choice = "mca.cor", 
+            repel = TRUE, # Avoid text overlapping (slow)
+            ggtheme = theme_minimal())
+```
+```{r}
+#Coordinates of variable categories
+head(round(var$coord, 2), 4)
+```
+###Variable categories MCA
+```{r}
+fviz_mca_var(res.mca, 
+             repel = TRUE, # Avoid text overlapping (slow)
+             ggtheme = theme_minimal())
+```
+
+###Quality of representation of variable categories
+```{r}
+head(var$cos2, 4)
+```
+
+```{r}
+# Color by cos2 values: quality on the factor map
+fviz_mca_var(res.mca, col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+             repel = TRUE, # Avoid text overlapping
+             ggtheme = theme_minimal())
+```
+### Individuals MCA
+```{r}
+fviz_mca_ind(res.mca, col.ind = "cos2", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE, # Avoid text overlapping (slow if many points)
+             ggtheme = theme_minimal())
+```
+###Individuals by groups MCA
+```{r}
+fviz_mca_ind(res.mca, 
+             label = "none", # hide individual labels
+             habillage = "Gender.c", # color by groups 
+             palette = c("#00AFBB", "#E7B800", "#FC4E07"),
+             addEllipses = TRUE, ellipse.type = "confidence",
+             ggtheme = theme_minimal())
+```
+
+
+
+
+
+### Visualize the cos2 of row categories
+```{r}
+library("corrplot")
+corrplot(var$cos, is.corr=FALSE)
+```
+
+```{r}
+# Cos2 of variable categories on Dim.1 and Dim.2
+fviz_cos2(res.mca, choice = "var", axes = 1:2)
+```
+```{r}
+head(round(var$contrib,2), 4)
+```
+
+```{r}
+# Contributions of rows to dimension 1
+fviz_contrib(res.mca, choice = "var", axes = 1, top = 15)
+# Contributions of rows to dimension 2
+fviz_contrib(res.mca, choice = "var", axes = 2, top = 15)
+```
+#K-means
+
+```{r}
+# Elbow method
+fviz_nbclust(df_active, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow method")
+# Silhouette method
+fviz_nbclust(df_active, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+# Gap statistic
+# nboot = 50 to keep the function speedy. 
+# recommended value: nboot= 500 for your analysis.
+# Use verbose = FALSE to hide computing progression.
+set.seed(123)
+fviz_nbclust(df_active, kmeans, nstart = 25,  method = "gap_stat", nboot = 50)+
+  labs(subtitle = "Gap statistic method")
+```
+
+
+```{r}
+km.res <- kmeans(df_active, 2)
+```
+
+
+
+```{r}
+fviz_cluster(km.res, data = df_active,
+             palette = c("#2E9FDF", "#E7B800"), 
+             geom = "point",
+             ellipse.type = "convex", 
+             ggtheme = theme_bw()
+             )
+```
+
+
+#Hierarchical Clustering
+
+
+```{r}
+res.pca <- PCA(df_active[1:500,], ncp = 3, graph = FALSE)
+# 2. HCPC
+res.hcpc <- HCPC(res.pca, graph = FALSE)
+```
+
+
+```{r}
+fviz_dend(res.hcpc, 
+          cex = 0.9,                     # Taille du text
+          palette = "jco",               # Palette de couleur ?ggpubr::ggpar
+          rect = TRUE, rect_fill = TRUE, # Rectangle autour des groupes
+          rect_border = "jco",           # Couleur du rectangle
+          labels_track_height = 1, 
+          # Augment l'espace pour le texte
+)
+```
+
+
+```{r}
+library(FactoMineR)
+# Compute PCA with ncp = 3
+res.pca <- PCA(df_active, ncp = 3, graph = FALSE)
+# Compute hierarchical clustering on principal components
+res.hcpc <- HCPC(res.pca, graph = FALSE)
+```
+
+```{r}
+fviz_dend(res.hcpc)
+```
+
+
+
+```{r}
+plot(res.hcpc, choice = "3D.map")
+```
+
+
+```{r}
+# Individuals facor map
+fviz_cluster(res.hcpc, geom = "point", main = "Factor map")
+```
+
