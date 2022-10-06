@@ -1,1 +1,1 @@
-# DimensionalityReduction-Clustering
+# Dimensionality Reduction Clustering
